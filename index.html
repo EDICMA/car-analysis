@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中南地区汽车竞品竞对数据分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft Yahei", sans-serif;
+        }
+        body {
+            background-color: #f5f7fa;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        /* 筛选栏样式 */
+        .filter-bar {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .filter-item {
+            display: inline-block;
+            margin-right: 20px;
+        }
+        .filter-item label {
+            font-weight: 600;
+            margin-right: 10px;
+            color: #333;
+        }
+        .filter-item select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-width: 150px;
+            font-size: 14px;
+        }
+        /* 指标卡片样式 */
+        .card-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .data-card {
+            flex: 1;
+            min-width: 200px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        .card-title {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .card-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2f5496;
+        }
+        /* 图表容器样式 */
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            height: 400px;
+        }
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        /* 响应式适配 */
+        @media (max-width: 768px) {
+            .card-container {
+                flex-direction: column;
+            }
+            .chart-container {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 筛选栏 -->
+        <div class="filter-bar">
+            <div class="filter-item">
+                <label for="province">省份：</label>
+                <select id="province">
+                    <option value="all">全部省份</option>
+                    <option value="安徽省">安徽省</option>
+                    <option value="湖北省">湖北省</option>
+                    <option value="湖南省">湖南省</option>
+                    <option value="江西省">江西省</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="city">城市：</label>
+                <select id="city">
+                    <option value="all">全部城市</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- 核心指标卡片 -->
+        <div class="card-container">
+            <div class="data-card">
+                <div class="card-title">PV销量（万辆）</div>
+                <div class="card-value" id="pv-sales">300.3</div>
+            </div>
+            <div class="data-card">
+                <div class="card-title">NEV销量（万辆）</div>
+                <div class="card-value" id="nev-sales">157.4</div>
+            </div>
+            <div class="data-card">
+                <div class="card-title">整体渗透率</div>
+                <div class="card-value" id="penetration">52.40%</div>
+            </div>
+            <div class="data-card">
+                <div class="card-title">覆盖城市数</div>
+                <div class="card-value" id="city-count">55</div>
+            </div>
+        </div>
+
+        <!-- 区域市场分析图表 -->
+        <div class="chart-container">
+            <div class="chart-title">区域市场分析（PV/NEV销量 & 渗透率）</div>
+            <div id="region-chart" style="width: 100%; height: 85%;"></div>
+        </div>
+
+        <!-- 价格带分布图表 -->
+        <div class="chart-container">
+            <div class="chart-title">纯电价格带销量分布</div>
+            <div id="price-chart" style="width: 100%; height: 85%;"></div>
+        </div>
+
+        <!-- 车型竞争格局图表 -->
+        <div class="chart-container">
+            <div class="chart-title">车型竞争格局（TOP10车型 & 系别占比）</div>
+            <div id="model-chart" style="width: 100%; height: 85%;"></div>
+        </div>
+    </div>
+
+    <script>
+        // 1. 原始数据集（按省市分层）
+        const rawData = {
+            // 省份总数据
+            provinceData: {
+                "安徽省": {
+                    pv: 89.4672, nev: 48.2772, penetration: 53.96, cityCount: 16,
+                    priceData: { "20-30万": 55.7, "5-9万": 21.8, "8-14万": 13.7, "12-20万": 8.8 },
+                    modelData: {
+                        topModels: [
+                            {name: "星愿", value: 12500}, {name: "元UP", value: 8200}, {name: "海豹06 GT", value: 7100},
+                            {name: "乐道L90", value: 5800}, {name: "深蓝S05", value: 4800}
+                        ],
+                        seriesData: { "A系": 32.1, "B系": 30.2, "C系": 20.5, "D系": 17.2 }
+                    },
+                    cities: {
+                        "合肥市": {pv: 25.6, nev: 14.2, penetration: 55.47, priceData: { "20-30万": 58.2, "5-9万": 20.1, "8-14万": 12.5, "12-20万": 9.2 }, modelData: { topModels: [{name: "星愿", value: 4500}, {name: "元UP", value: 2800}, {name: "海豹06 GT", value: 2200}], seriesData: { "A系": 33.5, "B系": 29.8, "C系": 20.2, "D系": 16.5 } }},
+                        "芜湖市": {pv: 18.5, nev: 9.8, penetration: 52.97, priceData: { "20-30万": 54.3, "5-9万": 22.5, "8-14万": 14.1, "12-20万": 9.1 }, modelData: { topModels: [{name: "星愿", value: 2800}, {name: "元UP", value: 1800}, {name: "海豹06 GT", value: 1500}], seriesData: { "A系": 31.8, "B系": 30.5, "C系": 21.2, "D系": 16.5 } }},
+                        "其他城市": {pv: 45.3672, nev: 24.2772, penetration: 53.53, priceData: { "20-30万": 55.1, "5-9万": 22.3, "8-14万": 14.0, "12-20万": 8.6 }, modelData: { topModels: [{name: "星愿", value: 5200}, {name: "元UP", value: 3600}, {name: "海豹06 GT", value: 3400}], seriesData: { "A系": 31.9, "B系": 30.3, "C系": 20.6, "D系": 17.2 } }}
+                    }
+                },
+                "湖北省": {
+                    pv: 81.6032, nev: 46.4975, penetration: 56.98, cityCount: 14,
+                    priceData: { "20-30万": 55.2, "5-9万": 21.5, "8-14万": 14.0, "12-20万": 9.3 },
+                    modelData: {
+                        topModels: [
+                            {name: "星愿", value: 13200}, {name: "元UP", value: 7800}, {name: "海豹06 GT", value: 6800},
+                            {name: "乐道L90", value: 5500}, {name: "深蓝S05", value: 4500}
+                        ],
+                        seriesData: { "A系": 32.5, "B系": 30.1, "C系": 20.3, "D系": 17.1 }
+                    },
+                    cities: {
+                        "武汉市": {pv: 32.5, nev: 19.8, penetration: 61.15, priceData: { "20-30万": 57.8, "5-9万": 19.8, "8-14万": 13.2, "12-20万": 9.2 }, modelData: { topModels: [{name: "星愿", value: 5800}, {name: "元UP", value: 3200}, {name: "海豹06 GT", value: 2900}], seriesData: { "A系": 33.2, "B系": 29.9, "C系": 20.1, "D系": 16.8 } }},
+                        "鄂州市": {pv: 8.2, nev: 5.3, penetration: 64.66, priceData: { "20-30万": 59.1, "5-9万": 18.5, "8-14万": 12.8, "12-20万": 9.6 }, modelData: { topModels: [{name: "星愿", value: 1500}, {name: "元UP", value: 850}, {name: "海豹06 GT", value: 780}], seriesData: { "A系": 34.1, "B系": 29.5, "C系": 19.8, "D系": 16.6 } }},
+                        "其他城市": {pv: 40.9032, nev: 21.3975, penetration: 52.31, priceData: { "20-30万": 53.5, "5-9万": 22.8, "8-14万": 14.5, "12-20万": 9.2 }, modelData: { topModels: [{name: "星愿", value: 5900}, {name: "元UP", value: 3750}, {name: "海豹06 GT", value: 3120}], seriesData: { "A系": 31.8, "B系": 30.4, "C系": 20.6, "D系": 17.2 } }}
+                    }
+                },
+                "湖南省": {
+                    pv: 74.8335, nev: 35.1331, penetration: 46.95, cityCount: 14,
+                    priceData: { "20-30万": 54.8, "5-9万": 22.5, "8-14万": 14.2, "12-20万": 8.5 },
+                    modelData: {
+                        topModels: [
+                            {name: "星愿", value: 11800}, {name: "元UP", value: 6500}, {name: "海豹06 GT", value: 5200},
+                            {name: "乐道L90", value: 4200}, {name: "深蓝S05", value: 3800}
+                        ],
+                        seriesData: { "A系": 31.2, "B系": 30.8, "C系": 21.0, "D系": 17.0 }
+                    },
+                    cities: {
+                        "长沙市": {pv: 21.5, nev: 10.8, penetration: 50.23, priceData: { "20-30万": 56.5, "5-9万": 21.2, "8-14万": 13.8, "12-20万": 8.5 }, modelData: { topModels: [{name: "星愿", value: 4200}, {name: "元UP", value: 2300}, {name: "海豹06 GT", value: 1800}], seriesData: { "A系": 32.0, "B系": 30.5, "C系": 20.8, "D系": 16.7 } }},
+                        "益阳市": {pv: 7.8, nev: 3.0, penetration: 38.32, priceData: { "20-30万": 52.1, "5-9万": 24.8, "8-14万": 15.2, "12-20万": 7.9 }, modelData: { topModels: [{name: "星愿", value: 950}, {name: "元UP", value: 880}, {name: "海豹06 GT", value: 650}], seriesData: { "A系": 30.5, "B系": 31.2, "C系": 21.5, "D系": 16.8 } }},
+                        "其他城市": {pv: 45.5335, nev: 21.3331, penetration: 46.85, priceData: { "20-30万": 54.5, "5-9万": 22.8, "8-14万": 14.3, "12-20万": 8.4 }, modelData: { topModels: [{name: "星愿", value: 6650}, {name: "元UP", value: 3320}, {name: "海豹06 GT", value: 2750}], seriesData: { "A系": 31.0, "B系": 30.9, "C系": 21.1, "D系": 17.0 } }}
+                    }
+                },
+                "江西省": {
+                    pv: 54.4121, nev: 27.4435, penetration: 50.44, cityCount: 11,
+                    priceData: { "20-30万": 54.5, "5-9万": 23.2, "8-14万": 14.1, "12-20万": 8.2 },
+                    modelData: {
+                        topModels: [
+                            {name: "星愿", value: 9500}, {name: "元UP", value: 4962}, {name: "海豹06 GT", value: 4407},
+                            {name: "乐道L90", value: 2600}, {name: "深蓝S05", value: 1904}
+                        ],
+                        seriesData: { "A系": 31.0, "B系": 30.5, "C系": 21.0, "D系": 17.5 }
+                    },
+                    cities: {
+                        "南昌市": {pv: 15.8, nev: 8.2, penetration: 51.90, priceData: { "20-30万": 55.8, "5-9万": 22.1, "8-14万": 13.5, "12-20万": 8.6 }, modelData: { topModels: [{name: "星愿", value: 3200}, {name: "元UP", value: 1800}, {name: "海豹06 GT", value: 1500}], seriesData: { "A系": 31.8, "B系": 30.2, "C系": 20.8, "D系": 17.2 } }},
+                        "赣州市": {pv: 12.5, nev: 6.1, penetration: 48.80, priceData: { "20-30万": 53.2, "5-9万": 24.5, "8-14万": 14.8, "12-20万": 7.5 }, modelData: { topModels: [{name: "星愿", value: 2100}, {name: "元UP", value: 1200}, {name: "海豹06 GT", value: 950}], seriesData: { "A系": 30.5, "B系": 30.8, "C系": 21.5, "D系": 17.2 } }},
+                        "其他城市": {pv: 26.1121, nev: 13.1435, penetration: 50.33, priceData: { "20-30万": 54.1, "5-9万": 23.5, "8-14万": 14.2, "12-20万": 8.2 }, modelData: { topModels: [{name: "星愿", value: 4200}, {name: "元UP", value: 1962}, {name: "海豹06 GT", value: 1957}], seriesData: { "A系": 30.9, "B系": 30.6, "C系": 21.1, "D系": 17.4 } }}
+                    }
+                },
+                "all": {
+                    pv: 300.3, nev: 157.4, penetration: 52.40, cityCount: 55,
+                    priceData: { "20-30万": 55.0, "5-9万": 22.0, "8-14万": 13.9, "12-20万": 9.0 },
+                    modelData: {
+                        topModels: [
+                            {name: "星愿", value: 45073}, {name: "元UP", value: 27462}, {name: "海豹06 GT", value: 23507},
+                            {name: "乐道L90", value: 18100}, {name: "深蓝S05", value: 15004}
+                        ],
+                        seriesData: { "A系": 31.8, "B系": 30.4, "C系": 20.6, "D系": 17.2 }
+                    }
+                }
+            },
+            // 省市映射表（用于级联下拉框）
+            cityMap: {
+                "安徽省": ["合肥市", "芜湖市", "其他城市"],
+                "湖北省": ["武汉市", "鄂州市", "其他城市"],
+                "湖南省": ["长沙市", "益阳市", "其他城市"],
+                "江西省": ["南昌市", "赣州市", "其他城市"],
+                "all": ["全部城市"]
+            }
+        };
+
+        // 2. 初始化图表
+        const regionChart = echarts.init(document.getElementById('region-chart'));
+        const priceChart = echarts.init(document.getElementById('price-chart'));
+        const modelChart = echarts.init(document.getElementById('model-chart'));
+
+        // 3. 省市筛选联动逻辑
+        const provinceSelect = document.getElementById('province');
+        const citySelect = document.getElementById('city');
+
+        // 省份选择变化时更新城市列表
+        provinceSelect.addEventListener('change', function() {
+            const selectedProvince = this.value;
+            // 清空城市列表
+            citySelect.innerHTML = '';
+            // 添加"全部城市"选项
+            const allCityOption = document.createElement('option');
+            allCityOption.value = 'all';
+            allCityOption.textContent = '全部城市';
+            citySelect.appendChild(allCityOption);
+            // 添加对应省份的城市列表
+            const cities = rawData.cityMap[selectedProvince];
+            cities.forEach(city => {
+                const option = document.createElement('option');
+                option.value = city;
+                option.textContent = city;
+                citySelect.appendChild(option);
+            });
+            // 更新数据和图表
+            updateDataAndCharts(selectedProvince, 'all');
+        });
+
+        // 城市选择变化时更新数据和图表
+        citySelect.addEventListener('change', function() {
+            const selectedProvince = provinceSelect.value;
+            const selectedCity = this.value;
+            updateDataAndCharts(selectedProvince, selectedCity);
+        });
+
+        // 4. 数据更新和图表渲染核心函数
+        function updateDataAndCharts(province, city) {
+            let targetData;
+            
+            // 确定筛选后的数据对象
+            if (province === 'all' || city === 'all') {
+                // 省份全部 或 城市选全部 → 取省份级数据
+                targetData = rawData.provinceData[province === 'all' ? 'all' : province];
+            } else {
+                // 选具体城市 → 取城市级数据
+                targetData = rawData.provinceData[province].cities[city];
+            }
+
+            // 更新核心指标卡片
+            document.getElementById('pv-sales').textContent = targetData.pv.toFixed(1);
+            document.getElementById('nev-sales').textContent = targetData.nev.toFixed(1);
+            document.getElementById('penetration').textContent = targetData.penetration.toFixed(2) + '%';
+            document.getElementById('city-count').textContent = targetData.cityCount || '-';
+
+            // 更新区域市场分析图表
+            renderRegionChart(targetData, province, city);
+            // 更新价格带分布图表
+            renderPriceChart(targetData.priceData);
+            // 更新车型竞争格局图表
+            renderModelChart(targetData.modelData);
+        }
+
+        // 5. 各图表渲染函数
+        // 5.1 区域市场分析图表
+        function renderRegionChart(data, province, city) {
+            const title = province === 'all' ? '全国汇总' : 
+                          city === 'all' ? `${province}汇总` : `${province}-${city}`;
+            
+            const option = {
+                title: { text: '' },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    formatter: function(params) {
+                        let res = params[0].name;
+                        params.forEach(item => {
+                            res += `<br/>${item.seriesName}: ${item.value}${item.seriesName.includes('渗透率') ? '%' : '万辆'}`;
+                        });
+                        return res;
+                    }
+                },
+                legend: { data: ['PV销量', 'NEV销量', '渗透率'] },
+                grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                xAxis: [{ type: 'category', data: [title] }],
+                yAxis: [
+                    { type: 'value', name: '销量（万辆）', min: 0, axisLabel: { formatter: '{value}' } },
+                    { type: 'value', name: '渗透率（%）', min: 0, max: 100, axisLabel: { formatter: '{value}%' } }
+                ],
+                series: [
+                    { name: 'PV销量', type: 'bar', yAxisIndex: 0, data: [data.pv] },
+                    { name: 'NEV销量', type: 'bar', yAxisIndex: 0, data: [data.nev] },
+                    { name: '渗透率', type: 'line', yAxisIndex: 1, data: [data.penetration], itemStyle: { color: '#ff7f0e' } }
+                ]
+            };
+            regionChart.setOption(option);
+        }
+
+        // 5.2 价格带分布图表
+        function renderPriceChart(priceData) {
+            const option = {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{b}: {c}% ({d}%)'
+                },
+                legend: {
+                    orient: 'vertical',
+                    left: 'left',
+                    data: Object.keys(priceData)
+                },
+                series: [
+                    {
+                        name: '价格带占比',
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        avoidLabelOverlap: false,
+                        itemStyle: {
+                            borderRadius: 10,
+                            borderColor: '#fff',
+                            borderWidth: 2
+                        },
+                        label: {
+                            show: true,
+                            position: 'center',
+                            formatter: '{b}\n{c}%'
+                        },
+                        emphasis: {
+                            label: {
+                                show: true,
+                                fontSize: 16,
+                                fontWeight: 'bold'
+                            }
+                        },
+                        labelLine: { show: false },
+                        data: Object.keys(priceData).map(key => ({ name: key, value: priceData[key] }))
+                    }
+                ]
+            };
+            priceChart.setOption(option);
+        }
+
+        // 5.3 车型竞争格局图表（组合图表）
+        function renderModelChart(modelData) {
+            const option = {
+                tooltip: { trigger: 'axis' },
+                legend: {
+                    data: ['车型销量', 'A系', 'B系', 'C系', 'D系'],
+                    top: 0
+                },
+                grid: {
+                    left: '10%',
+                    right: '20%',
+                    bottom: '10%',
+                    containLabel: true
+                },
+                xAxis: [
+                    {
+                        type: 'category',
+                        data: modelData.topModels.map(item => item.name),
+                        axisLabel: { interval: 0 }
+                    }
+                ],
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: '车型销量（辆）',
+                        position: 'left',
+                        axisLine: { lineStyle: { color: '#5470c6' } },
+                        axisLabel: { formatter: '{value}' }
+                    },
+                    {
+                        type: 'value',
+                        name: '系别占比（%）',
+                        position: 'right',
+                        max: 100,
+                        axisLine: { lineStyle: { color: '#91cc75' } },
+                        axisLabel: { formatter: '{value}%' }
+                    }
+                ],
+                series: [
+                    {
+                        name: '车型销量',
+                        type: 'bar',
+                        yAxisIndex: 0,
+                        data: modelData.topModels.map(item => item.value),
+                        itemStyle: { color: '#5470c6' }
+                    },
+                    {
+                        name: 'A系',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: Array(modelData.topModels.length).fill(modelData.seriesData['A系']),
+                        itemStyle: { color: '#91cc75' }
+                    },
+                    {
+                        name: 'B系',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: Array(modelData.topModels.length).fill(modelData.seriesData['B系']),
+                        itemStyle: { color: '#fac858' }
+                    },
+                    {
+                        name: 'C系',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: Array(modelData.topModels.length).fill(modelData.seriesData['C系']),
+                        itemStyle: { color: '#ee6666' }
+                    },
+                    {
+                        name: 'D系',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: Array(modelData.topModels.length).fill(modelData.seriesData['D系']),
+                        itemStyle: { color: '#73c0de' }
+                    }
+                ]
+            };
+            modelChart.setOption(option);
+        }
+
+        // 6. 页面加载时初始化（显示全部数据）
+        window.onload = function() {
+            // 初始化城市列表为全部省份的全部城市
+            citySelect.innerHTML = '<option value="all">全部城市</option>';
+            // 渲染初始图表
+            updateDataAndCharts('all', 'all');
+            
+            // 监听窗口大小变化，自适应图表
+            window.addEventListener('resize', function() {
+                regionChart.resize();
+                priceChart.resize();
+                modelChart.resize();
+            });
+        };
+    </script>
+</body>
+</html>
